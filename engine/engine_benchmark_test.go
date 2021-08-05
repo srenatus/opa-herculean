@@ -16,8 +16,9 @@ func BenchmarkEngine(b *testing.B) {
 		require.NoError(b, err)
 		modules, err := engine.GetModulesFromDir(rulesDir)
 		require.NoError(b, err)
+		modules[engine.ModuleNameHelpers] = helpers
 
-		eng, err = engine.NewEngine(modules, helpers)
+		eng, err = engine.NewEngine(modules)
 		require.NoError(b, err)
 	}
 
@@ -39,7 +40,7 @@ func BenchmarkAIOEngine(b *testing.B) {
 		require.NoError(b, err)
 		modules, err := engine.GetModulesFromDir(rulesDir)
 		require.NoError(b, err)
-		modules["helpers.rego"] = helpers
+		modules[engine.ModuleNameHelpers] = helpers
 
 		eng, err = engine.NewAIOEngine(modules)
 		require.NoError(b, err)

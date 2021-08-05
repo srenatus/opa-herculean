@@ -1,4 +1,4 @@
-# opa-herculean
+# :muscle: OPA Herculean :muscle:
 
 ## TOC
 

@@ -23,6 +23,11 @@ type Engine interface {
 	Eval(event external.Event) (Findings, error)
 }
 
+const (
+	// ModuleNameHelpers the name of the Rego module with helper functions.
+	ModuleNameHelpers = "helpers.rego"
+)
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 const (
@@ -37,16 +42,19 @@ type engine struct {
 
 // NewEngine constructs a new Engine with the specified Rego modules.
 // This implementation compiles each module separately and prepares
-// multiple queries for evaluation by Engine.Eval.
-func NewEngine(modules map[string]string, helpers string) (Engine, error) {
+// multiple queries for evaluation.
+func NewEngine(modules map[string]string) (Engine, error) {
 	preparedQueries := make(map[string]rego.PreparedEvalQuery)
 	metadata := make(map[string]types.SignatureMetadata)
 
 	ctx := context.TODO()
 	for moduleName, code := range modules {
+		if moduleName == ModuleNameHelpers {
+			continue
+		}
 		compiler, err := ast.CompileModules(map[string]string{
-			moduleName:   code,
-			"helpers.go": helpers,
+			moduleName:        code,
+			ModuleNameHelpers: modules[ModuleNameHelpers],
 		})
 		if err != nil {
 			return nil, fmt.Errorf("compiling module: %s: %w", moduleName, err)
@@ -87,7 +95,7 @@ func NewEngine(modules map[string]string, helpers string) (Engine, error) {
 }
 
 // Eval iterates through all queries prepared by the NewEngine constructor
-// and evaluates the specified external.Event.
+// and evaluates the specified event.
 func (e *engine) Eval(event external.Event) (Findings, error) {
 	ctx := context.TODO()
 	var findings []types.Finding
@@ -174,7 +182,7 @@ type aio struct {
 
 // NewAIOEngine constructs a new Engine with the specified Rego modules.
 // This implementation compiles all modules once and prepares the single
-// query for evaluation by Engine.Eval.
+// query for evaluation.
 func NewAIOEngine(modules map[string]string) (Engine, error) {
 	modules[moduleMain] = policyMain
 	ctx := context.TODO()
@@ -333,7 +341,7 @@ func GetModulesFromDir(dir string) (map[string]string, error) {
 		if filepath.Ext(file.Name()) != ".rego" {
 			continue
 		}
-		if file.Name() == "helpers.rego" {
+		if file.Name() == ModuleNameHelpers {
 			continue
 		}
 		regoCode, err := GetFileContentAsString(filepath.Join(dir, file.Name()))

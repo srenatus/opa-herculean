@@ -154,8 +154,9 @@ func TestEngine(t *testing.T) {
 		modules := map[string]string{
 			"anti_debugging_ptraceme.rego": antiDebuggingRego,
 			"code_injection.rego":          codeInjectionRego,
+			engine.ModuleNameHelpers:       helpersRego,
 		}
-		eng, err = engine.NewEngine(modules, helpersRego)
+		eng, err = engine.NewEngine(modules)
 		require.NoError(t, err)
 	}
 
