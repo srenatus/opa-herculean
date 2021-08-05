@@ -1,5 +1,14 @@
 # opa-herculean
 
+## TOC
+
+- [1. Compile and evaluate N queries vs compile and evaluate 1 query](#1-compile-and-evaluate-n-queries-vs-compile-and-evaluate-1-query)
+  - [1.1 Run tests](#11-run-tests)
+  - [1.2 Run benchmarks (6 signatures)](#12-run-benchmarks-6-signatures)
+  - [1.3 Run benchmarks (71 signatures)](#13-run-benchmarks-71-signatures)
+
+## 1. Compile and evaluate N queries vs compile and evaluate 1 query
+
 To understand what is the difference between evaluating multiple Rego queries per signature
 (`data.tracee.TRC_1.tracee_match`, `data.tracee.TRC_2.tracee_match`, ..., `data.tracee.TRC_N.tracee_match`) versus
 evaluating one query (`data.main.tracee_match_all`) for the given input event.
@@ -23,12 +32,9 @@ tracee_match_all[id] = resp {
 }
 ````
 
-```
-git clone git@github.com:danielpacak/opa-herculean.git
-cd opa-herculean
-```
+### 1.1 Run tests
 
-## Run tests
+> **NOTE** Currently the unit tests only pass with signatures written by security research team, revision 036720606f448bb5d4f5891a79b9c7134d2f1467.
 
 ```
 go test -v -run=Engine ./... \
@@ -42,7 +48,35 @@ PASS
 ok  	github.com/danielpacak/opa-herculean/engine	1.410s
 ```
 
-## Run benchmarks
+### 1.2 Run benchmarks (6 signatures)
+
+```
+go test -run=none -bench=BenchmarkEngine -benchmem -benchtime=3s ./... \
+  -enginerulesdir=/Users/dpacak/dev/my_rulez/rego \
+  -enginehelpers=/Users/dpacak/dev/my_rulez/helpers.rego
+goos: darwin
+goarch: amd64
+pkg: github.com/danielpacak/opa-herculean/engine
+cpu: Intel(R) Core(TM) i9-9900K CPU @ 3.60GHz
+BenchmarkEngine-16    	    8901	    371828 ns/op	  189061 B/op	    4211 allocs/op
+PASS
+ok  	github.com/danielpacak/opa-herculean/engine	4.778s
+```
+
+```
+go test -run=none -bench=BenchmarkAIOEngine -benchmem -benchtime=3s ./... \
+  -enginerulesdir=/Users/dpacak/dev/my_rulez/rego \
+  -enginehelpers=/Users/dpacak/dev/my_rulez/helpers.rego
+goos: darwin
+goarch: amd64
+pkg: github.com/danielpacak/opa-herculean/engine
+cpu: Intel(R) Core(TM) i9-9900K CPU @ 3.60GHz
+BenchmarkAIOEngine-16    	   23830	    150952 ns/op	   73556 B/op	    1475 allocs/op
+PASS
+ok  	github.com/danielpacak/opa-herculean/engine	5.949s
+```
+
+### 1.3 Run benchmarks (71 signatures)
 
 ```
 go test -run=none -bench=BenchmarkEngine -benchmem -benchtime=3s ./... \
