@@ -1,6 +1,8 @@
 package engine_test
 
 import (
+	_ "embed"
+
 	"encoding/json"
 	"flag"
 	"os"
@@ -135,17 +137,25 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+var (
+	//go:embed testdata/helpers.rego
+	helpersRego string
+	//go:embed testdata/rego/anti_debugging_ptraceme.rego
+	antiDebuggingRego string
+	//go:embed testdata/rego/code_injection.rego
+	codeInjectionRego string
+)
+
 func TestEngine(t *testing.T) {
 	var err error
 	var eng engine.Engine
 
 	{
-		helpers, err := engine.GetFileContentAsString(helpersFilename)
-		require.NoError(t, err)
-		modules, err := engine.GetModulesFromDir(rulesDir)
-		require.NoError(t, err)
-
-		eng, err = engine.NewEngine(modules, helpers)
+		modules := map[string]string{
+			"anti_debugging_ptraceme.rego": antiDebuggingRego,
+			"code_injection.rego":          codeInjectionRego,
+		}
+		eng, err = engine.NewEngine(modules, helpersRego)
 		require.NoError(t, err)
 	}
 
@@ -156,16 +166,12 @@ func TestEngine(t *testing.T) {
 			SigMetadata: types.SignatureMetadata{
 				ID:          "TRC-2",
 				Version:     "0.1.0",
-				Name:        "Anti-Debugging Detected",
-				Description: "A Process used anti-debugging technique to block a debugger. Malwares use anti-debugging to stay invisible and prevent their behavior being analyzed.",
+				Name:        "Anti-Debugging",
+				Description: "Process uses anti-debugging technique to block debugger",
 				Tags:        []string{"linux", "container"},
 				Properties: map[string]interface{}{
-					"Category":             "defense-evasion",
-					"Kubernetes_Technique": "",
-					"Severity":             json.Number("3"),
-					"Technique":            "Execution Guardrails",
-					"external_id":          "T1480",
-					"id":                   "attack-pattern--853c4192-4311-43e1-bfbb-b11b14911852",
+					"MITRE ATT&CK": "Defense Evasion: Execution Guardrails",
+					"Severity":     json.Number("3"),
 				},
 			},
 			Context: triggerAntiDebuggingEvent,
@@ -180,21 +186,18 @@ func TestEngine(t *testing.T) {
 			SigMetadata: types.SignatureMetadata{
 				ID:          "TRC-3",
 				Version:     "0.1.0",
-				Name:        "Code Injection Detected",
-				Description: "Possible code injection into another process was detected. Code injection is an exploitation technique used to run malicious code, adversaries may use it in order to execute their malwares.",
+				Name:        "Code injection",
+				Description: "Possible code injection into another process",
 				Tags:        []string{"linux", "container"},
 				Properties: map[string]interface{}{
-					"Category":             "defense-evasion",
-					"Kubernetes_Technique": "",
-					"Severity":             json.Number("3"),
-					"Technique":            "Process Injection",
-					"external_id":          "T1055",
-					"id":                   "attack-pattern--43e7dc91-05b2-474c-b9ac-2ed4fe101f4d"},
+					"MITRE ATT&CK": "Defense Evasion: Process Injection",
+					"Severity":     json.Number("3"),
+				},
 			},
 			Context: triggerCodeInjectorEvent,
 			Data: map[string]interface{}{
-				"File Flags": "o_rdwr",
-				"File Path":  "/proc/20/mem",
+				"file flags": "o_rdwr",
+				"file path":  "/proc/20/mem",
 			},
 		},
 	}, findings)
@@ -205,12 +208,11 @@ func TestAIOEngine(t *testing.T) {
 	var eng engine.Engine
 
 	{
-		helpers, err := engine.GetFileContentAsString(helpersFilename)
-		require.NoError(t, err)
-		modules, err := engine.GetModulesFromDir(rulesDir)
-		require.NoError(t, err)
-		modules["helpers.rego"] = helpers
-
+		modules := map[string]string{
+			"anti_debugging_ptraceme.rego": antiDebuggingRego,
+			"code_injection.rego":          codeInjectionRego,
+			"helpers.rego":                 helpersRego,
+		}
 		eng, err = engine.NewAIOEngine(modules)
 		require.NoError(t, err)
 	}
@@ -222,16 +224,12 @@ func TestAIOEngine(t *testing.T) {
 			SigMetadata: types.SignatureMetadata{
 				ID:          "TRC-2",
 				Version:     "0.1.0",
-				Name:        "Anti-Debugging Detected",
-				Description: "A Process used anti-debugging technique to block a debugger. Malwares use anti-debugging to stay invisible and prevent their behavior being analyzed.",
+				Name:        "Anti-Debugging",
+				Description: "Process uses anti-debugging technique to block debugger",
 				Tags:        []string{"linux", "container"},
 				Properties: map[string]interface{}{
-					"Category":             "defense-evasion",
-					"Kubernetes_Technique": "",
-					"Severity":             json.Number("3"),
-					"Technique":            "Execution Guardrails",
-					"external_id":          "T1480",
-					"id":                   "attack-pattern--853c4192-4311-43e1-bfbb-b11b14911852",
+					"MITRE ATT&CK": "Defense Evasion: Execution Guardrails",
+					"Severity":     json.Number("3"),
 				},
 			},
 			Context: triggerAntiDebuggingEvent,
@@ -246,21 +244,18 @@ func TestAIOEngine(t *testing.T) {
 			SigMetadata: types.SignatureMetadata{
 				ID:          "TRC-3",
 				Version:     "0.1.0",
-				Name:        "Code Injection Detected",
-				Description: "Possible code injection into another process was detected. Code injection is an exploitation technique used to run malicious code, adversaries may use it in order to execute their malwares.",
+				Name:        "Code injection",
+				Description: "Possible code injection into another process",
 				Tags:        []string{"linux", "container"},
 				Properties: map[string]interface{}{
-					"Category":             "defense-evasion",
-					"Kubernetes_Technique": "",
-					"Severity":             json.Number("3"),
-					"Technique":            "Process Injection",
-					"external_id":          "T1055",
-					"id":                   "attack-pattern--43e7dc91-05b2-474c-b9ac-2ed4fe101f4d"},
+					"MITRE ATT&CK": "Defense Evasion: Process Injection",
+					"Severity":     json.Number("3"),
+				},
 			},
 			Context: triggerCodeInjectorEvent,
 			Data: map[string]interface{}{
-				"File Flags": "o_rdwr",
-				"File Path":  "/proc/20/mem",
+				"file flags": "o_rdwr",
+				"file path":  "/proc/20/mem",
 			},
 		},
 	}, findings)

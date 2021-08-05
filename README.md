@@ -3,9 +3,9 @@
 ## TOC
 
 - [1. Compile and evaluate N queries vs compile and evaluate 1 query](#1-compile-and-evaluate-n-queries-vs-compile-and-evaluate-1-query)
-  - [1.1 Run tests](#11-run-tests)
-  - [1.2 Run benchmarks (6 signatures)](#12-run-benchmarks-6-signatures)
-  - [1.3 Run benchmarks (71 signatures)](#13-run-benchmarks-71-signatures)
+    - [1.1 Run tests](#11-run-tests)
+    - [1.2 Run benchmarks (6 signatures)](#12-run-benchmarks-6-signatures)
+    - [1.3 Run benchmarks (71 signatures)](#13-run-benchmarks-71-signatures)
 
 ## 1. Compile and evaluate N queries vs compile and evaluate 1 query
 
@@ -34,12 +34,8 @@ tracee_match_all[id] = resp {
 
 ### 1.1 Run tests
 
-> **NOTE** Currently the unit tests only pass with signatures written by security research team, revision 036720606f448bb5d4f5891a79b9c7134d2f1467.
-
 ```
-go test -v -run=Engine ./... \
-  -enginerulesdir=/Users/dpacak/dev/my_rulez/rego \
-  -enginehelpers=/Users/dpacak/dev/my_rulez/helpers.rego
+go test -v -run=Engine ./...
 === RUN   TestEngine
 --- PASS: TestEngine (0.14s)
 === RUN   TestAIOEngine
@@ -49,6 +45,8 @@ ok  	github.com/danielpacak/opa-herculean/engine	1.410s
 ```
 
 ### 1.2 Run benchmarks (6 signatures)
+
+> **NOTE** 6 signatures are open source rules shipped with tracee-rules, revision 76a932ff09fe5fb61b71cc6d95c947236da42eab.
 
 ```
 go test -run=none -bench=BenchmarkEngine -benchmem -benchtime=3s ./... \
@@ -77,6 +75,8 @@ ok  	github.com/danielpacak/opa-herculean/engine	5.949s
 ```
 
 ### 1.3 Run benchmarks (71 signatures)
+
+> **NOTE** 71 signatures are written by security research team, revision 036720606f448bb5d4f5891a79b9c7134d2f1467.
 
 ```
 go test -run=none -bench=BenchmarkEngine -benchmem -benchtime=3s ./... \
