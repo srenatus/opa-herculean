@@ -2,12 +2,15 @@
 
 ## TOC
 
-- [1. Compile and evaluate N queries vs compile and evaluate 1 query](#1-compile-and-evaluate-n-queries-vs-compile-and-evaluate-1-query)
+- [1 Compile and evaluate N queries vs compile and evaluate 1 query](#1-compile-and-evaluate-n-queries-vs-compile-and-evaluate-1-query)
     - [1.1 Run tests](#11-run-tests)
     - [1.2 Run benchmarks (6 signatures)](#12-run-benchmarks-6-signatures)
     - [1.3 Run benchmarks (71 signatures)](#13-run-benchmarks-71-signatures)
+- [2 Evaluate raw input versus evaluate parsed input](#2-evaluate-raw-input-versus-evaluate-parsed-input)
+    - [2.1 Run benchmarks (6 signatures)](#21-run-benchmarks-6-signatures)
+    - [2.2 Run benchmarks (71 signatures)](#22-run-benchmarks-71-signatures)
 
-## 1. Compile and evaluate N queries vs compile and evaluate 1 query
+## 1 Compile and evaluate N queries vs compile and evaluate 1 query
 
 To understand what is the difference between evaluating multiple Rego queries per signature
 (`data.tracee.TRC_1.tracee_match`, `data.tracee.TRC_2.tracee_match`, ..., `data.tracee.TRC_N.tracee_match`) versus
@@ -46,12 +49,10 @@ ok  	github.com/danielpacak/opa-herculean/engine	1.410s
 
 ### 1.2 Run benchmarks (6 signatures)
 
-> **NOTE** 6 signatures are open source rules shipped with tracee-rules, revision 76a932ff09fe5fb61b71cc6d95c947236da42eab.
-
 ```
-go test -run=none -bench=BenchmarkEngine -benchmem -benchtime=3s ./... \
-  -enginerulesdir=/Users/dpacak/dev/my_rulez/rego \
-  -enginehelpers=/Users/dpacak/dev/my_rulez/helpers.rego
+go test -run=none -bench=BenchmarkEngineWithRawInput -benchmem -benchtime=3s ./... \
+  -enginerulesdir=testdata/rego \
+  -enginehelpers=testdata/helpers.rego
 goos: darwin
 goarch: amd64
 pkg: github.com/danielpacak/opa-herculean/engine
@@ -62,9 +63,9 @@ ok  	github.com/danielpacak/opa-herculean/engine	4.778s
 ```
 
 ```
-go test -run=none -bench=BenchmarkAIOEngine -benchmem -benchtime=3s ./... \
-  -enginerulesdir=/Users/dpacak/dev/my_rulez/rego \
-  -enginehelpers=/Users/dpacak/dev/my_rulez/helpers.rego
+go test -run=none -bench=BenchmarkAIOEngineWithRawInput -benchmem -benchtime=3s ./... \
+  -enginerulesdir=testdata/rego \
+  -enginehelpers=testdata/helpers.rego
 goos: darwin
 goarch: amd64
 pkg: github.com/danielpacak/opa-herculean/engine
@@ -79,7 +80,7 @@ ok  	github.com/danielpacak/opa-herculean/engine	5.949s
 > **NOTE** 71 signatures are written by security research team, revision 036720606f448bb5d4f5891a79b9c7134d2f1467.
 
 ```
-go test -run=none -bench=BenchmarkEngine -benchmem -benchtime=3s ./... \
+go test -run=none -bench=BenchmarkEngineWithRawInput -benchmem -benchtime=3s ./... \
   -enginerulesdir=/Users/dpacak/dev/my_rulez/rego \
   -enginehelpers=/Users/dpacak/dev/my_rulez/helpers.rego
 goos: darwin
@@ -92,7 +93,7 @@ ok  	github.com/danielpacak/opa-herculean/engine	5.137s
 ```
 
 ```
-go test -run=none -bench=BenchmarkAIOEngine -benchmem -benchtime=3s ./... \
+go test -run=none -bench=BenchmarkAIOEngineWithRawInput -benchmem -benchtime=3s ./... \
   -enginerulesdir=/Users/dpacak/dev/my_rulez/rego \
   -enginehelpers=/Users/dpacak/dev/my_rulez/helpers.rego
 goos: darwin
@@ -102,4 +103,63 @@ cpu: Intel(R) Core(TM) i9-9900K CPU @ 3.60GHz
 BenchmarkAIOEngine-16    	    6608	    537862 ns/op	  246596 B/op	    5403 allocs/op
 PASS
 ok  	github.com/danielpacak/opa-herculean/engine	5.323s
+```
+
+## 2 Evaluate raw input versus evaluate parsed input
+
+
+### 2.1 Run benchmarks (6 signatures)
+
+```
+go test -run=none -bench=BenchmarkEngineWithRawInput -benchmem -benchtime=3s ./... \
+  -enginerulesdir=testdata/rego \
+  -enginehelpers=testdata/helpers.rego
+goos: darwin
+goarch: amd64
+pkg: github.com/danielpacak/opa-herculean/engine
+cpu: Intel(R) Core(TM) i9-9900K CPU @ 3.60GHz
+BenchmarkEngineWithRawInput-16    	    8484	    370957 ns/op	  186344 B/op	    4181 allocs/op
+PASS
+ok  	github.com/danielpacak/opa-herculean/engine	4.790s
+```
+
+```
+go test -run=none -bench=BenchmarkEngineWithParsedInput -benchmem -benchtime=3s ./... \
+  -enginerulesdir=testdata/rego \
+  -enginehelpers=testdata/helpers.rego
+goos: darwin
+goarch: amd64
+pkg: github.com/danielpacak/opa-herculean/engine
+cpu: Intel(R) Core(TM) i9-9900K CPU @ 3.60GHz
+BenchmarkEngineWithParsedInput-16    	   29258	    123175 ns/op	   75962 B/op	    1394 allocs/op
+PASS
+ok  	github.com/danielpacak/opa-herculean/engine	5.540s
+```
+
+### 2.2 Run benchmarks (71 signatures)
+
+```
+go test -run=none -bench=BenchmarkEngineWithRawInput -benchmem -benchtime=3s ./... \
+  -enginerulesdir=/Users/dpacak/dev/my_rulez/rego \
+  -enginehelpers=/Users/dpacak/dev/my_rulez/helpers.rego
+goos: darwin
+goarch: amd64
+pkg: github.com/danielpacak/opa-herculean/engine
+cpu: Intel(R) Core(TM) i9-9900K CPU @ 3.60GHz
+BenchmarkEngineWithRawInput-16    	     914	   3908826 ns/op	 1999994 B/op	   46588 allocs/op
+PASS
+ok  	github.com/danielpacak/opa-herculean/engine	5.682s
+```
+
+```
+go test -run=none -bench=BenchmarkEngineWithParsedInput -benchmem -benchtime=3s ./... \
+  -enginerulesdir=/Users/dpacak/dev/my_rulez/rego \
+  -enginehelpers=/Users/dpacak/dev/my_rulez/helpers.rego
+goos: darwin
+goarch: amd64
+pkg: github.com/danielpacak/opa-herculean/engine
+cpu: Intel(R) Core(TM) i9-9900K CPU @ 3.60GHz
+BenchmarkEngineWithParsedInput-16    	    3044	   1139569 ns/op	  698465 B/op	   13638 allocs/op
+PASS
+ok  	github.com/danielpacak/opa-herculean/engine	4.688s
 ```

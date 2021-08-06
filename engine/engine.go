@@ -20,7 +20,7 @@ import (
 type Findings []types.Finding
 
 type Engine interface {
-	Eval(event external.Event) (Findings, error)
+	Eval(event types.Event) (Findings, error)
 }
 
 const (
@@ -96,11 +96,16 @@ func NewEngine(modules map[string]string) (Engine, error) {
 
 // Eval iterates through all queries prepared by the NewEngine constructor
 // and evaluates the specified event.
-func (e *engine) Eval(event external.Event) (Findings, error) {
+func (e *engine) Eval(ee types.Event) (Findings, error) {
+	input, event, err := toInputOption(ee)
+	if err != nil {
+		return nil, err
+	}
+
 	ctx := context.TODO()
 	var findings []types.Finding
 	for sig, peq := range e.preparedQueries {
-		rs, err := peq.Eval(ctx, rego.EvalInput(event))
+		rs, err := peq.Eval(ctx, input)
 		if err != nil {
 			return nil, fmt.Errorf("evaluating %s with input event %d: %w", sig, event.EventID, err)
 		}
@@ -217,9 +222,13 @@ func NewAIOEngine(modules map[string]string) (Engine, error) {
 	}, nil
 }
 
-func (e *aio) Eval(event external.Event) (Findings, error) {
+func (e *aio) Eval(ee types.Event) (Findings, error) {
+	input, event, err := toInputOption(ee)
+	if err != nil {
+		return nil, err
+	}
 	ctx := context.TODO()
-	rs, err := e.preparedQuery.Eval(ctx, rego.EvalInput(event))
+	rs, err := e.preparedQuery.Eval(ctx, input)
 	if err != nil {
 		return nil, err
 	}
@@ -308,6 +317,48 @@ func GetSignatureMetadataAllFrom(rs rego.ResultSet) (map[string]types.SignatureM
 		return nil, err
 	}
 	return res, nil
+}
+
+// ParsedEvent holds the original external.Event and its OPA ast.Value representation.
+type ParsedEvent struct {
+	Event external.Event
+	Value ast.Value
+}
+
+// ToParsedEvent enhances tracee.Event with OPA ast.Value. This is mainly used
+// for performance optimization to avoid parsing tracee.Event multiple times.
+func ToParsedEvent(e external.Event) (ParsedEvent, error) {
+	u, err := e.ToUnstructured()
+	if err != nil {
+		return ParsedEvent{}, fmt.Errorf("unstructuring event: %w", err)
+	}
+	// TODO In OPA >= v0.30.0 we can try passing tracee.Event directly to get rid of ToUnstructured call.
+	v, err := ast.InterfaceToValue(u)
+	if err != nil {
+		return ParsedEvent{}, fmt.Errorf("converting unstructured event to OPA ast.Value: %w", err)
+	}
+	return ParsedEvent{
+		Event: e,
+		Value: v,
+	}, nil
+}
+
+func toInputOption(ee types.Event) (rego.EvalOption, external.Event, error) {
+	var input rego.EvalOption
+	var event external.Event
+
+	switch ee.(type) {
+	case external.Event:
+		event = ee.(external.Event)
+		input = rego.EvalInput(ee)
+	case ParsedEvent:
+		pe := ee.(ParsedEvent)
+		event = pe.Event
+		input = rego.EvalParsedInput(pe.Value)
+	default:
+		return nil, external.Event{}, fmt.Errorf("unrecognized event type: %T", ee)
+	}
+	return input, event, nil
 }
 
 var (

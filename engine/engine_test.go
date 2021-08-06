@@ -95,7 +95,7 @@ var (
 			},
 		},
 	}
-	triggerCodeInjectorEvent = external.Event{
+	triggerCodeInjectionEvent = external.Event{
 		Timestamp:           6123321183,
 		ProcessID:           1,
 		ThreadID:            1,
@@ -180,7 +180,7 @@ func TestEngine(t *testing.T) {
 		},
 	}, findings)
 
-	findings, err = eng.Eval(triggerCodeInjectorEvent)
+	findings, err = eng.Eval(triggerCodeInjectionEvent)
 	require.NoError(t, err)
 	assert.Equal(t, engine.Findings{
 		{
@@ -195,7 +195,7 @@ func TestEngine(t *testing.T) {
 					"Severity":     json.Number("3"),
 				},
 			},
-			Context: triggerCodeInjectorEvent,
+			Context: triggerCodeInjectionEvent,
 			Data: map[string]interface{}{
 				"file flags": "o_rdwr",
 				"file path":  "/proc/20/mem",
@@ -238,7 +238,7 @@ func TestAIOEngine(t *testing.T) {
 		},
 	}, findings)
 
-	findings, err = eng.Eval(triggerCodeInjectorEvent)
+	findings, err = eng.Eval(triggerCodeInjectionEvent)
 	require.NoError(t, err)
 	assert.Equal(t, engine.Findings{
 		{
@@ -253,7 +253,7 @@ func TestAIOEngine(t *testing.T) {
 					"Severity":     json.Number("3"),
 				},
 			},
-			Context: triggerCodeInjectorEvent,
+			Context: triggerCodeInjectionEvent,
 			Data: map[string]interface{}{
 				"file flags": "o_rdwr",
 				"file path":  "/proc/20/mem",
