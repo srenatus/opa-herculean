@@ -2,15 +2,27 @@
 
 ## TOC
 
-- [1 Compile and evaluate N queries vs compile and evaluate 1 query](#1-compile-and-evaluate-n-queries-vs-compile-and-evaluate-1-query)
-    - [1.1 Run tests](#11-run-tests)
-    - [1.2 Run benchmarks (6 signatures)](#12-run-benchmarks-6-signatures)
-    - [1.3 Run benchmarks (71 signatures)](#13-run-benchmarks-71-signatures)
-- [2 Evaluate raw input versus evaluate parsed input](#2-evaluate-raw-input-versus-evaluate-parsed-input)
+- [1 Run tests](#1-run-tests)
+- [2 Compile and evaluate N queries vs compile and evaluate 1 query](#2-compile-and-evaluate-n-queries-vs-compile-and-evaluate-1-query)
     - [2.1 Run benchmarks (6 signatures)](#21-run-benchmarks-6-signatures)
     - [2.2 Run benchmarks (71 signatures)](#22-run-benchmarks-71-signatures)
+- [3 Evaluate raw input versus evaluate parsed input](#3-evaluate-raw-input-versus-evaluate-parsed-input)
+    - [3.1 Run benchmarks (6 signatures)](#31-run-benchmarks-6-signatures)
+    - [3.2 Run benchmarks (71 signatures)](#32-run-benchmarks-71-signatures)
 
-## 1 Compile and evaluate N queries vs compile and evaluate 1 query
+### 1 Run tests
+
+```
+go test -v -run=Engine ./...
+=== RUN   TestEngine
+--- PASS: TestEngine (0.14s)
+=== RUN   TestAIOEngine
+--- PASS: TestAIOEngine (0.05s)
+PASS
+ok  	github.com/danielpacak/opa-herculean/engine	1.410s
+```
+
+## 2 Compile and evaluate N queries vs compile and evaluate 1 query
 
 To understand what is the difference between evaluating multiple Rego queries per signature
 (`data.tracee.TRC_1.tracee_match`, `data.tracee.TRC_2.tracee_match`, ..., `data.tracee.TRC_N.tracee_match`) versus
@@ -35,19 +47,8 @@ tracee_match_all[id] = resp {
 }
 ````
 
-### 1.1 Run tests
 
-```
-go test -v -run=Engine ./...
-=== RUN   TestEngine
---- PASS: TestEngine (0.14s)
-=== RUN   TestAIOEngine
---- PASS: TestAIOEngine (0.05s)
-PASS
-ok  	github.com/danielpacak/opa-herculean/engine	1.410s
-```
-
-### 1.2 Run benchmarks (6 signatures)
+### 2.1 Run benchmarks (6 signatures)
 
 ```
 go test -run=none -bench=BenchmarkEngineWithRawInput -benchmem -benchtime=3s ./... \
@@ -75,7 +76,7 @@ PASS
 ok  	github.com/danielpacak/opa-herculean/engine	5.949s
 ```
 
-### 1.3 Run benchmarks (71 signatures)
+### 2.2 Run benchmarks (71 signatures)
 
 > **NOTE** 71 signatures are written by security research team, revision 036720606f448bb5d4f5891a79b9c7134d2f1467.
 
@@ -105,10 +106,9 @@ PASS
 ok  	github.com/danielpacak/opa-herculean/engine	5.323s
 ```
 
-## 2 Evaluate raw input versus evaluate parsed input
+## 3 Evaluate raw input versus evaluate parsed input
 
-
-### 2.1 Run benchmarks (6 signatures)
+### 3.1 Run benchmarks (6 signatures)
 
 ```
 go test -run=none -bench=BenchmarkEngineWithRawInput -benchmem -benchtime=3s ./... \
@@ -136,7 +136,7 @@ PASS
 ok  	github.com/danielpacak/opa-herculean/engine	5.540s
 ```
 
-### 2.2 Run benchmarks (71 signatures)
+### 3.2 Run benchmarks (71 signatures)
 
 ```
 go test -run=none -bench=BenchmarkEngineWithRawInput -benchmem -benchtime=3s ./... \
