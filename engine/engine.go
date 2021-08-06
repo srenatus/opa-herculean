@@ -1,9 +1,7 @@
 package engine
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -13,6 +11,7 @@ import (
 
 	"github.com/aquasecurity/tracee/tracee-ebpf/external"
 	"github.com/aquasecurity/tracee/tracee-rules/types"
+	"github.com/danielpacak/opa-herculean/mapper"
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/rego"
 )
@@ -31,21 +30,24 @@ const (
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 const (
-	queryMetadata string = "data.%s.__rego_metadoc__"
-	queryMatch    string = "data.%s.tracee_match"
+	queryMetadata       = "data.%s.__rego_metadoc__"
+	querySelectedEvents = "data.%s.tracee_selected_events"
+	queryMatch          = "data.%s.tracee_match"
 )
 
 type engine struct {
-	preparedQueries map[string]rego.PreparedEvalQuery
-	metadata        map[string]types.SignatureMetadata
+	sigIDToPreparedQuery  map[string]rego.PreparedEvalQuery
+	sigIDToMetadata       map[string]types.SignatureMetadata
+	sigIDToSelectedEvents map[string][]types.SignatureEventSelector
 }
 
 // NewEngine constructs a new Engine with the specified Rego modules.
 // This implementation compiles each module separately and prepares
 // multiple queries for evaluation.
 func NewEngine(modules map[string]string) (Engine, error) {
-	preparedQueries := make(map[string]rego.PreparedEvalQuery)
-	metadata := make(map[string]types.SignatureMetadata)
+	sigIDToPreparedQuery := make(map[string]rego.PreparedEvalQuery)
+	sigIDToMetadata := make(map[string]types.SignatureMetadata)
+	sigIDToSelectedEvents := make(map[string][]types.SignatureEventSelector)
 
 	ctx := context.TODO()
 	for moduleName, code := range modules {
@@ -72,11 +74,24 @@ func NewEngine(modules map[string]string) (Engine, error) {
 		if err != nil {
 			return nil, fmt.Errorf("evaluating signature metadata: %w", err)
 		}
-		sigMetadata, err := GetSignatureMetadataFrom(metadataRS)
+		metadata, err := mapper.With(metadataRS).ToSignatureMetadata()
 		if err != nil {
 			return nil, err
 		}
-		metadata[sigMetadata.ID] = sigMetadata
+		sigIDToMetadata[metadata.ID] = metadata
+
+		selectedEventsRS, err := rego.New(
+			rego.Compiler(compiler),
+			rego.Query(fmt.Sprintf(querySelectedEvents, pkgName)),
+		).Eval(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("evaluating signature selected events: %w", err)
+		}
+		selectedEvents, err := mapper.With(selectedEventsRS).ToSelectedEvents()
+		if err != nil {
+			return nil, err
+		}
+		sigIDToSelectedEvents[metadata.ID] = selectedEvents
 
 		peq, err := rego.New(
 			rego.Compiler(compiler),
@@ -85,12 +100,13 @@ func NewEngine(modules map[string]string) (Engine, error) {
 		if err != nil {
 			return nil, fmt.Errorf("preparing for evaluation: %s: %w", moduleName, err)
 		}
-		preparedQueries[sigMetadata.ID] = peq
+		sigIDToPreparedQuery[metadata.ID] = peq
 	}
 
 	return &engine{
-		preparedQueries: preparedQueries,
-		metadata:        metadata,
+		sigIDToPreparedQuery:  sigIDToPreparedQuery,
+		sigIDToMetadata:       sigIDToMetadata,
+		sigIDToSelectedEvents: sigIDToSelectedEvents,
 	}, nil
 }
 
@@ -104,10 +120,10 @@ func (e *engine) Eval(ee types.Event) (Findings, error) {
 
 	ctx := context.TODO()
 	var findings []types.Finding
-	for sig, peq := range e.preparedQueries {
+	for sigID, peq := range e.sigIDToPreparedQuery {
 		rs, err := peq.Eval(ctx, input)
 		if err != nil {
-			return nil, fmt.Errorf("evaluating %s with input event %d: %w", sig, event.EventID, err)
+			return nil, fmt.Errorf("evaluating %s with input event %d: %w", sigID, event.EventID, err)
 		}
 
 		if len(rs) == 0 {
@@ -118,7 +134,7 @@ func (e *engine) Eval(ee types.Event) (Findings, error) {
 			continue
 		}
 
-		finding, err := e.findingFrom(rs[0].Expressions[0].Value, sig, event)
+		finding, err := e.findingFrom(rs[0].Expressions[0].Value, sigID, event)
 		if err != nil {
 			return nil, err
 		}
@@ -138,7 +154,7 @@ func (e *engine) findingFrom(value interface{}, signatureID string, event extern
 			return &types.Finding{
 				Data:        nil,
 				Context:     event,
-				SigMetadata: e.metadata[signatureID],
+				SigMetadata: e.sigIDToMetadata[signatureID],
 			}, nil
 		} else {
 			return nil, nil
@@ -147,7 +163,7 @@ func (e *engine) findingFrom(value interface{}, signatureID string, event extern
 		return &types.Finding{
 			Data:        v,
 			Context:     event,
-			SigMetadata: e.metadata[signatureID],
+			SigMetadata: e.sigIDToMetadata[signatureID],
 		}, nil
 	default:
 		return nil, fmt.Errorf("unrecognized value: %T", v)
@@ -167,6 +183,14 @@ __rego_metadoc_all__[id] = resp {
 		id := resp.id
 }
 
+# Returns the map of signature identifiers to signature selected events.
+tracee_selected_events_all[id] = resp {
+	some i
+		resp := data.tracee[i].tracee_selected_events
+		metadata := data.tracee[i].__rego_metadoc__
+		id := metadata.id
+}
+
 # Returns the map of signature identifiers to values matching the input event.
 tracee_match_all[id] = resp {
 	some i
@@ -176,13 +200,15 @@ tracee_match_all[id] = resp {
 }
 `
 
-	queryMetadataAll = "data.main.__rego_metadoc_all__"
-	queryMatchAll    = "data.main.tracee_match_all"
+	queryMetadataAll       = "data.main.__rego_metadoc_all__"
+	querySelectedEventsAll = "data.main.tracee_selected_events_all"
+	queryMatchAll          = "data.main.tracee_match_all"
 )
 
 type aio struct {
-	preparedQuery rego.PreparedEvalQuery
-	metadata      map[string]types.SignatureMetadata
+	preparedQuery         rego.PreparedEvalQuery
+	sigIDToMetadata       map[string]types.SignatureMetadata
+	sigIDToSelectedEvents map[string][]types.SignatureEventSelector
 }
 
 // NewAIOEngine constructs a new Engine with the specified Rego modules.
@@ -196,14 +222,26 @@ func NewAIOEngine(modules map[string]string) (Engine, error) {
 		return nil, fmt.Errorf("compiling modules: %w", err)
 	}
 
-	metadataAllRS, err := rego.New(
+	metadataRS, err := rego.New(
 		rego.Compiler(compiler),
 		rego.Query(queryMetadataAll),
 	).Eval(ctx)
 	if err != nil {
 		return nil, err
 	}
-	metadata, err := GetSignatureMetadataAllFrom(metadataAllRS)
+	sigIDToMetadata, err := mapper.With(metadataRS).ToSignatureMetadataAll()
+	if err != nil {
+		return nil, err
+	}
+
+	selectedEventsRS, err := rego.New(
+		rego.Compiler(compiler),
+		rego.Query(querySelectedEventsAll),
+	).Eval(ctx)
+	if err != nil {
+		return nil, err
+	}
+	sigIDToSelectedEvents, err := mapper.With(selectedEventsRS).ToSelectedEventsAll()
 	if err != nil {
 		return nil, err
 	}
@@ -217,8 +255,9 @@ func NewAIOEngine(modules map[string]string) (Engine, error) {
 	}
 
 	return &aio{
-		metadata:      metadata,
-		preparedQuery: preparedQuery,
+		preparedQuery:         preparedQuery,
+		sigIDToMetadata:       sigIDToMetadata,
+		sigIDToSelectedEvents: sigIDToSelectedEvents,
 	}, nil
 }
 
@@ -267,7 +306,7 @@ func (e *aio) findingFrom(value interface{}, signatureID string, event external.
 			return &types.Finding{
 				Data:        nil,
 				Context:     event,
-				SigMetadata: e.metadata[signatureID],
+				SigMetadata: e.sigIDToMetadata[signatureID],
 			}, nil
 		} else {
 			return nil, nil
@@ -276,47 +315,11 @@ func (e *aio) findingFrom(value interface{}, signatureID string, event external.
 		return &types.Finding{
 			Data:        v,
 			Context:     event,
-			SigMetadata: e.metadata[signatureID],
+			SigMetadata: e.sigIDToMetadata[signatureID],
 		}, nil
 	default:
 		return nil, fmt.Errorf("unrecognized value: %T", v)
 	}
-}
-
-func GetSignatureMetadataFrom(rs rego.ResultSet) (types.SignatureMetadata, error) {
-	if len(rs) == 0 || len(rs[0].Expressions) == 0 || rs[0].Expressions[0].Value == nil {
-		return types.SignatureMetadata{}, errors.New("empty result set")
-	}
-	resJSON, err := json.Marshal(rs[0].Expressions[0].Value)
-	if err != nil {
-		return types.SignatureMetadata{}, err
-	}
-	dec := json.NewDecoder(bytes.NewBuffer(resJSON))
-	dec.UseNumber()
-	var res types.SignatureMetadata
-	err = dec.Decode(&res)
-	if err != nil {
-		return types.SignatureMetadata{}, err
-	}
-	return res, nil
-}
-
-func GetSignatureMetadataAllFrom(rs rego.ResultSet) (map[string]types.SignatureMetadata, error) {
-	if len(rs) == 0 || len(rs[0].Expressions) == 0 || rs[0].Expressions[0].Value == nil {
-		return nil, errors.New("empty result set")
-	}
-	resJSON, err := json.Marshal(rs[0].Expressions[0].Value)
-	if err != nil {
-		return nil, err
-	}
-	dec := json.NewDecoder(bytes.NewBuffer(resJSON))
-	dec.UseNumber()
-	var res map[string]types.SignatureMetadata
-	err = dec.Decode(&res)
-	if err != nil {
-		return nil, err
-	}
-	return res, nil
 }
 
 // ParsedEvent holds the original external.Event and its OPA ast.Value representation.
