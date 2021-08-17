@@ -39,6 +39,8 @@ type engine struct {
 	sigIDToPreparedQuery  map[string]rego.PreparedEvalQuery
 	sigIDToMetadata       map[string]types.SignatureMetadata
 	sigIDToSelectedEvents map[string][]types.SignatureEventSelector
+
+	index index
 }
 
 // NewEngine constructs a new Engine with the specified Rego modules.
@@ -107,6 +109,8 @@ func NewEngine(modules map[string]string) (Engine, error) {
 		sigIDToPreparedQuery:  sigIDToPreparedQuery,
 		sigIDToMetadata:       sigIDToMetadata,
 		sigIDToSelectedEvents: sigIDToSelectedEvents,
+
+		index: newIndex(sigIDToSelectedEvents),
 	}, nil
 }
 
@@ -120,7 +124,10 @@ func (e *engine) Eval(ee types.Event) (Findings, error) {
 
 	ctx := context.TODO()
 	var findings []types.Finding
-	for sigID, peq := range e.sigIDToPreparedQuery {
+
+	for _, sigID := range e.index.getSignaturesMatchingEvent(ee) {
+		peq := e.sigIDToPreparedQuery[sigID]
+
 		rs, err := peq.Eval(ctx, input)
 		if err != nil {
 			return nil, fmt.Errorf("evaluating %s with input event %d: %w", sigID, event.EventID, err)
@@ -209,6 +216,8 @@ type aio struct {
 	preparedQuery         rego.PreparedEvalQuery
 	sigIDToMetadata       map[string]types.SignatureMetadata
 	sigIDToSelectedEvents map[string][]types.SignatureEventSelector
+
+	index index
 }
 
 // NewAIOEngine constructs a new Engine with the specified Rego modules.
@@ -258,10 +267,17 @@ func NewAIOEngine(modules map[string]string) (Engine, error) {
 		preparedQuery:         preparedQuery,
 		sigIDToMetadata:       sigIDToMetadata,
 		sigIDToSelectedEvents: sigIDToSelectedEvents,
+
+		index: newIndex(sigIDToSelectedEvents),
 	}, nil
 }
 
 func (e *aio) Eval(ee types.Event) (Findings, error) {
+	// TODO Can we do that within the tracee_match_all rule?
+	if !(e.index.hasAnySignatureMatchingEventName(ee) || e.index.hasAnySignatureMatchingAnyEventName()) {
+		return Findings{}, nil
+	}
+
 	input, event, err := toInputOption(ee)
 	if err != nil {
 		return nil, err
