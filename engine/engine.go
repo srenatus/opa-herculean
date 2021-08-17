@@ -133,48 +133,16 @@ func (e *engine) Eval(ee types.Event) (Findings, error) {
 			return nil, fmt.Errorf("evaluating %s with input event %d: %w", sigID, event.EventID, err)
 		}
 
-		if len(rs) == 0 {
-			continue
-		}
-
-		if len(rs[0].Expressions) == 0 {
-			continue
-		}
-
-		finding, err := e.findingFrom(rs[0].Expressions[0].Value, sigID, event)
+		finding, err := mapper.With(rs).ToFinding(event, e.sigIDToMetadata[sigID])
 		if err != nil {
 			return nil, err
 		}
 
-		if finding == nil {
-			continue
+		if finding != nil {
+			findings = append(findings, *finding)
 		}
-		findings = append(findings, *finding)
 	}
 	return findings, nil
-}
-
-func (e *engine) findingFrom(value interface{}, signatureID string, event external.Event) (*types.Finding, error) {
-	switch v := value.(type) {
-	case bool:
-		if v {
-			return &types.Finding{
-				Data:        nil,
-				Context:     event,
-				SigMetadata: e.sigIDToMetadata[signatureID],
-			}, nil
-		} else {
-			return nil, nil
-		}
-	case map[string]interface{}:
-		return &types.Finding{
-			Data:        v,
-			Context:     event,
-			SigMetadata: e.sigIDToMetadata[signatureID],
-		}, nil
-	default:
-		return nil, fmt.Errorf("unrecognized value: %T", v)
-	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

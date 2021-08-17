@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 
+	"github.com/aquasecurity/tracee/tracee-ebpf/external"
 	"github.com/aquasecurity/tracee/tracee-rules/types"
 	"github.com/open-policy-agent/opa/rego"
 )
@@ -71,6 +73,33 @@ func (m Mapper) ToSelectedEvents() ([]types.SignatureEventSelector, error) {
 		return nil, err
 	}
 	return res, nil
+}
+
+func (m Mapper) ToFinding(event external.Event, metadata types.SignatureMetadata) (*types.Finding, error) {
+	if m.isEmpty() {
+		return nil, nil
+	}
+	value := m.ResultSet[0].Expressions[0].Value
+	switch v := value.(type) {
+	case bool:
+		if v {
+			return &types.Finding{
+				Data:        nil,
+				Context:     event,
+				SigMetadata: metadata,
+			}, nil
+		} else {
+			return nil, nil
+		}
+	case map[string]interface{}:
+		return &types.Finding{
+			Data:        v,
+			Context:     event,
+			SigMetadata: metadata,
+		}, nil
+	default:
+		return nil, fmt.Errorf("unrecognized value: %T", v)
+	}
 }
 
 func (m Mapper) isEmpty() bool {
