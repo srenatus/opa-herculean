@@ -2,10 +2,7 @@ package engine_test
 
 import (
 	_ "embed"
-
 	"encoding/json"
-	"flag"
-	"os"
 	"testing"
 
 	"github.com/aquasecurity/tracee/tracee-ebpf/external"
@@ -128,14 +125,6 @@ var (
 		},
 	}
 )
-
-func TestMain(m *testing.M) {
-	flag.StringVar(&rulesDir, "enginerulesdir", "/Users/dpacak/dev/my_rulez/rego", "Path to Rego signatures directory")
-	flag.StringVar(&helpersFilename, "enginehelpers", "/Users/dpacak/dev/my_rulez/helpers.rego", "Path to Rego helpers script (helpers.go)")
-
-	flag.Parse()
-	os.Exit(m.Run())
-}
 
 var (
 	//go:embed testdata/helpers.rego

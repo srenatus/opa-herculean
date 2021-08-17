@@ -190,34 +190,24 @@ __rego_metadoc_all__[id] = resp {
 		id := resp.id
 }
 
-# Returns the map of signature identifiers to signature selected events.
-tracee_selected_events_all[id] = resp {
-	some i
-		resp := data.tracee[i].tracee_selected_events
-		metadata := data.tracee[i].__rego_metadoc__
-		id := metadata.id
-}
-
 # Returns the map of signature identifiers to values matching the input event.
 tracee_match_all[id] = resp {
-	some i
+	some i, j
+		# TODO Support * and blank string as event name selectors
+		data.tracee[i].tracee_selected_events[j].name == input.eventName
 		resp := data.tracee[i].tracee_match
 		metadata := data.tracee[i].__rego_metadoc__
 		id := metadata.id
 }
 `
 
-	queryMetadataAll       = "data.main.__rego_metadoc_all__"
-	querySelectedEventsAll = "data.main.tracee_selected_events_all"
-	queryMatchAll          = "data.main.tracee_match_all"
+	queryMetadataAll = "data.main.__rego_metadoc_all__"
+	queryMatchAll    = "data.main.tracee_match_all"
 )
 
 type aio struct {
-	preparedQuery         rego.PreparedEvalQuery
-	sigIDToMetadata       map[string]types.SignatureMetadata
-	sigIDToSelectedEvents map[string][]types.SignatureEventSelector
-
-	index index
+	preparedQuery   rego.PreparedEvalQuery
+	sigIDToMetadata map[string]types.SignatureMetadata
 }
 
 // NewAIOEngine constructs a new Engine with the specified Rego modules.
@@ -243,18 +233,6 @@ func NewAIOEngine(modules map[string]string) (Engine, error) {
 		return nil, err
 	}
 
-	selectedEventsRS, err := rego.New(
-		rego.Compiler(compiler),
-		rego.Query(querySelectedEventsAll),
-	).Eval(ctx)
-	if err != nil {
-		return nil, err
-	}
-	sigIDToSelectedEvents, err := mapper.With(selectedEventsRS).ToSelectedEventsAll()
-	if err != nil {
-		return nil, err
-	}
-
 	preparedQuery, err := rego.New(
 		rego.Compiler(compiler),
 		rego.Query(queryMatchAll),
@@ -264,20 +242,12 @@ func NewAIOEngine(modules map[string]string) (Engine, error) {
 	}
 
 	return &aio{
-		preparedQuery:         preparedQuery,
-		sigIDToMetadata:       sigIDToMetadata,
-		sigIDToSelectedEvents: sigIDToSelectedEvents,
-
-		index: newIndex(sigIDToSelectedEvents),
+		preparedQuery:   preparedQuery,
+		sigIDToMetadata: sigIDToMetadata,
 	}, nil
 }
 
 func (e *aio) Eval(ee types.Event) (Findings, error) {
-	// TODO Can we do that within the tracee_match_all rule?
-	if !(e.index.hasAnySignatureMatchingEventName(ee) || e.index.hasAnySignatureMatchingAnyEventName()) {
-		return Findings{}, nil
-	}
-
 	input, event, err := toInputOption(ee)
 	if err != nil {
 		return nil, err

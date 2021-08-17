@@ -40,13 +40,13 @@ __rego_metadoc_all__[id] = resp {
 
 # Returns the map of signature identifiers to values matching the input event.
 tracee_match_all[id] = resp {
-	some i
+	some i, j
+		data.tracee[i].tracee_selected_events[j].name == input.eventName
 		resp := data.tracee[i].tracee_match
 		metadata := data.tracee[i].__rego_metadoc__
 		id := metadata.id
 }
 ````
-
 
 ### 2.1 Run benchmarks (6 signatures)
 
