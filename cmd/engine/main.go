@@ -90,18 +90,21 @@ func run() error {
 
 // Done channel should be passed to gorutine that produces events
 // Otherwise we may not print all detections due to signal interrupt.
-func process(engine engine.Engine, eventsCh chan external.Event, done <-chan bool) error {
-
+func process(eng engine.Engine, eventsCh chan external.Event, done <-chan bool) error {
 	for {
 		select {
 		case event, ok := <-eventsCh:
 			if !ok {
 				return nil
 			}
-			log.Printf("Processing event %s\n", event.EventName)
-			findings, err := engine.Eval(event)
+			parsedEvent, err := engine.ToParsedEvent(event)
 			if err != nil {
-				fmt.Printf("error processing event %d: %v\n", event.EventID, err)
+				log.Printf("error processing event %d: %v\n", event.EventID, err)
+				continue
+			}
+			findings, err := eng.Eval(parsedEvent)
+			if err != nil {
+				log.Printf("error processing event %d: %v\n", event.EventID, err)
 				continue
 			}
 			for _, f := range findings {

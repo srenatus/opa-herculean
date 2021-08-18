@@ -127,7 +127,7 @@ func (e *engine) Eval(ee types.Event) (Findings, error) {
 	ctx := context.TODO()
 	var findings []types.Finding
 
-	for _, sigID := range e.index.getSignaturesMatchingEvent(ee) {
+	for _, sigID := range e.index.getSignaturesMatchingEvent(event) {
 		peq := e.sigIDToPreparedQuery[sigID]
 
 		rs, err := peq.Eval(ctx, input)
@@ -222,14 +222,15 @@ func NewAIOEngine(modules map[string]string) (Engine, error) {
 }
 
 func (e *aio) Eval(ee types.Event) (Findings, error) {
-	if !(e.index.hasAnySignatureMatchingEventName(ee) || e.index.hasAnySignatureMatchingAnyEventName()) {
-		return Findings{}, nil
-	}
-
 	input, event, err := toInputOption(ee)
 	if err != nil {
 		return nil, err
 	}
+
+	if !(e.index.hasAnySignatureMatchingEventName(event) || e.index.hasAnySignatureMatchingAnyEventName()) {
+		return Findings{}, nil
+	}
+
 	ctx := context.TODO()
 	rs, err := e.preparedQuery.Eval(ctx, input)
 	if err != nil {
