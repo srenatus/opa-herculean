@@ -1,6 +1,8 @@
 package engine
 
 import (
+	_ "embed"
+
 	"context"
 	"errors"
 	"fmt"
@@ -148,38 +150,15 @@ func (e *engine) Eval(ee types.Event) (Findings, error) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 const (
-	moduleMain = "main.rego"
-	policyMain = `package main
-
-# Returns the map of signature identifiers to signature metadata.
-__rego_metadoc_all__[id] = resp {
-	some i
-		resp := data.tracee[i].__rego_metadoc__
-		id := resp.id
-}
-
-# Returns the map of signature identifiers to signature selected events.
-tracee_selected_events_all[id] = resp {
-	some i
-		resp := data.tracee[i].tracee_selected_events
-		metadata := data.tracee[i].__rego_metadoc__
-		id := metadata.id
-}
-
-# Returns the map of signature identifiers to values matching the input event.
-tracee_match_all[id] = resp {
-	some i, j
-		# TODO Support * and blank string as event name selectors
-		data.tracee[i].tracee_selected_events[j].name == input.eventName
-		resp := data.tracee[i].tracee_match
-		metadata := data.tracee[i].__rego_metadoc__
-		id := metadata.id
-}
-`
-
+	moduleMain             = "main.rego"
 	queryMetadataAll       = "data.main.__rego_metadoc_all__"
 	querySelectedEventsAll = "data.main.tracee_selected_events_all"
 	queryMatchAll          = "data.main.tracee_match_all"
+)
+
+var (
+	//go:embed aio.rego
+	mainRego string
 )
 
 type aio struct {
@@ -194,7 +173,7 @@ type aio struct {
 // This implementation compiles all modules once and prepares the single
 // query for evaluation.
 func NewAIOEngine(modules map[string]string) (Engine, error) {
-	modules[moduleMain] = policyMain
+	modules[moduleMain] = mainRego
 	ctx := context.TODO()
 	compiler, err := ast.CompileModules(modules)
 	if err != nil {
