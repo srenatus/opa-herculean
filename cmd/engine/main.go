@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/gob"
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -13,7 +14,26 @@ import (
 	"github.com/danielpacak/opa-herculean/engine"
 )
 
+var (
+	engineImpl  string
+	modulesDir  string
+	helpersFile string
+	input       string
+)
+
+// main is the entrypoint of the engine CLI.
+//
+//    ./engine --engine=aio \
+//      --modules=/Users/dpacak/dev/my_rulez/rego \
+//      --helpers=/Users/dpacak/dev/my_rulez/helpers.rego \
+//      --input=stdio
 func main() {
+	flag.StringVar(&engineImpl, "engine", "aio", "The engine implementation [default|aio]")
+	flag.StringVar(&modulesDir, "modules", "", "The absolute path to OPA signatures directory")
+	flag.StringVar(&helpersFile, "helpers", "", "The absolute path to OPA helpers file")
+	flag.StringVar(&input, "input", "stdio", "The input source [stdio|simple]")
+	flag.Parse()
+
 	if err := run(); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
@@ -21,26 +41,51 @@ func main() {
 }
 
 func run() error {
-	modules, err := engine.GetModulesFromDir("/Users/dpacak/dev/my_rulez/rego")
+	modules, err := engine.GetModulesFromDir(modulesDir)
 	if err != nil {
 		return err
 	}
-	helpers, err := engine.GetFileContentAsString("/Users/dpacak/dev/my_rulez/helpers.rego")
+	helpers, err := engine.GetFileContentAsString(helpersFile)
 	if err != nil {
 		return err
 	}
 	modules[engine.ModuleNameHelpers] = helpers
-	//engine, err := engine.NewEngine(modules)
-	engine, err := engine.NewAIOEngine(modules)
-	if err != nil {
-		return err
+	var eng engine.Engine
+	switch engineImpl {
+	case "aio":
+		log.Printf("Using %s engine\n", engineImpl)
+		eng, err = engine.NewAIOEngine(modules)
+		if err != nil {
+			return err
+		}
+	case "default":
+		log.Printf("Using %s engine\n", engineImpl)
+		eng, err = engine.NewEngine(modules)
+		if err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("unrecognized engine: %s", engineImpl)
 	}
-	eventsCh, err := NewInput(os.Stdin)
-	// eventsCh, err := NewSimpleInput()
-	if err != nil {
-		return err
+
+	var eventsCh chan external.Event
+	switch input {
+	case "stdio":
+		log.Printf("Using %s input\n", input)
+		eventsCh, err = NewInput(os.Stdin)
+		if err != nil {
+			return err
+		}
+	case "simple":
+		log.Printf("Using %s input\n", input)
+		eventsCh, err = NewSimpleInput()
+		if err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("unrecognized input source: %s", input)
 	}
-	return process(engine, eventsCh, sigHandler())
+	return process(eng, eventsCh, sigHandler())
 }
 
 // Done channel should be passed to gorutine that produces events
@@ -53,14 +98,14 @@ func process(engine engine.Engine, eventsCh chan external.Event, done <-chan boo
 			if !ok {
 				return nil
 			}
-			fmt.Printf("Processing event %s\n", event.EventName)
+			log.Printf("Processing event %s\n", event.EventName)
 			findings, err := engine.Eval(event)
 			if err != nil {
 				fmt.Printf("error processing event %d: %v\n", event.EventID, err)
 				continue
 			}
 			for _, f := range findings {
-				fmt.Printf("Detection: %v\n", f.SigMetadata.Name)
+				log.Printf("Detection: %v\n", f.SigMetadata.Name)
 			}
 		case <-done:
 			return nil
