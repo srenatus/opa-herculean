@@ -75,6 +75,24 @@ func (m Mapper) ToSelectedEvents() ([]types.SignatureEventSelector, error) {
 	return res, nil
 }
 
+func (m Mapper) ToSelectedEventsAll() (map[string][]types.SignatureEventSelector, error) {
+	if m.isEmpty() {
+		return nil, errors.New("empty result set")
+	}
+	resJSON, err := json.Marshal(m.ResultSet[0].Expressions[0].Value)
+	if err != nil {
+		return nil, err
+	}
+	dec := json.NewDecoder(bytes.NewBuffer(resJSON))
+	dec.UseNumber()
+	var res map[string][]types.SignatureEventSelector
+	err = dec.Decode(&res)
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
 func (m Mapper) ToFinding(event external.Event, metadata types.SignatureMetadata) (*types.Finding, error) {
 	if m.isEmpty() {
 		return nil, nil
