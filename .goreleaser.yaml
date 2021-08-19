@@ -13,10 +13,19 @@ builds:
       - linux
     goarch:
       - amd64
+  - id: stats
+    main: ./cmd/stats/main.go
+    binary: stats
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
 archives:
   - name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
     builds:
       - engine
+      - stats
     replacements:
       amd64: x86_64
 checksum:

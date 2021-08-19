@@ -251,6 +251,66 @@ func TestAIOEngine(t *testing.T) {
 	}, findings)
 }
 
+func TestMemoizedEngine(t *testing.T) {
+	var err error
+	var eng engine.Engine
+
+	{
+		modules := map[string]string{
+			"anti_debugging_ptraceme.rego": antiDebuggingRego,
+			"code_injection.rego":          codeInjectionRego,
+			engine.ModuleNameHelpers:       helpersRego,
+		}
+		eng, err = engine.NewEngine(modules)
+		require.NoError(t, err)
+		eng, err = engine.NewMemoizedEngine(eng)
+		require.NoError(t, err)
+	}
+
+	findings, err := eng.Eval(triggerAntiDebuggingEvent)
+	require.NoError(t, err)
+	assert.Equal(t, engine.Findings{
+		{
+			SigMetadata: types.SignatureMetadata{
+				ID:          "TRC-2",
+				Version:     "0.1.0",
+				Name:        "Anti-Debugging",
+				Description: "Process uses anti-debugging technique to block debugger",
+				Tags:        []string{"linux", "container"},
+				Properties: map[string]interface{}{
+					"MITRE ATT&CK": "Defense Evasion: Execution Guardrails",
+					"Severity":     json.Number("3"),
+				},
+			},
+			Context: triggerAntiDebuggingEvent,
+			Data:    nil,
+		},
+	}, findings)
+
+	findings, err = eng.Eval(triggerCodeInjectionEvent)
+	require.NoError(t, err)
+	assert.Equal(t, engine.Findings{
+		{
+			SigMetadata: types.SignatureMetadata{
+				ID:          "TRC-3",
+				Version:     "0.1.0",
+				Name:        "Code injection",
+				Description: "Possible code injection into another process",
+				Tags:        []string{"linux", "container"},
+				Properties: map[string]interface{}{
+					"MITRE ATT&CK": "Defense Evasion: Process Injection",
+					"Severity":     json.Number("3"),
+				},
+			},
+			Context: triggerCodeInjectionEvent,
+			Data: map[string]interface{}{
+				"file flags": "o_rdwr",
+				"file path":  "/proc/20/mem",
+			},
+		},
+	}, findings)
+}
+
 func TestGetPackageNameFromCode(t *testing.T) {
 	pkgName, err := engine.GetPackageNameFromCode(`package tracee.TRC_2
 

@@ -19,16 +19,19 @@ var (
 	modulesDir  string
 	helpersFile string
 	input       string
+	memoized    bool
 )
 
 // main is the entrypoint of the engine CLI.
 //
 //    ./engine --engine=aio \
+//      --memoized \
 //      --modules=/Users/dpacak/dev/my_rulez/rego \
 //      --helpers=/Users/dpacak/dev/my_rulez/helpers.rego \
 //      --input=stdio
 func main() {
 	flag.StringVar(&engineImpl, "engine", "aio", "The engine implementation [default|aio]")
+	flag.BoolVar(&memoized, "memoized", false, "The flag to enable memoized engine")
 	flag.StringVar(&modulesDir, "modules", "", "The absolute path to OPA signatures directory")
 	flag.StringVar(&helpersFile, "helpers", "", "The absolute path to OPA helpers file")
 	flag.StringVar(&input, "input", "stdio", "The input source [stdio|simple]")
@@ -66,6 +69,14 @@ func run() error {
 		}
 	default:
 		return fmt.Errorf("unrecognized engine: %s", engineImpl)
+	}
+
+	if memoized {
+		log.Printf("Enabling memoization\n")
+		eng, err = engine.NewMemoizedEngine(eng)
+		if err != nil {
+			return err
+		}
 	}
 
 	var eventsCh chan external.Event
