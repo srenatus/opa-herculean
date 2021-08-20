@@ -46,18 +46,26 @@ tracee_match = res {
 
     helpers.is_file_write(flags)
 
-    pathname := helpers.get_tracee_argument("pathname")
-
-    regex.match(`/proc/(?:\d.+|self)/mem`, pathname)
-
     res := {
         "file flags": flags,
         "file path": pathname,
     }
 }
 
+pathname := helpers.get_tracee_argument("pathname")
+path_pieces := split(pathname, "/")
+
 tracee_match {
     input.eventName == "process_vm_writev"
     dst_pid = helpers.get_tracee_argument("pid")
     dst_pid != input.processId
+}
+
+path_matches {
+    ["", "proc", "self", "mem"] = path_pieces
+}
+
+path_matches {
+    ["", "proc", x, "mem"] = path_pieces
+    to_number(x)
 }
