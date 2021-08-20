@@ -2,6 +2,8 @@ package engine
 
 import (
 	_ "embed"
+	"encoding/json"
+	"strconv"
 
 	"context"
 	"errors"
@@ -16,6 +18,7 @@ import (
 	"github.com/danielpacak/opa-herculean/mapper"
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/rego"
+	"github.com/open-policy-agent/opa/util"
 )
 
 type Findings []types.Finding
@@ -296,7 +299,7 @@ type ParsedEvent struct {
 // ToParsedEvent enhances tracee.Event with OPA ast.Value. This is mainly used
 // for performance optimization to avoid parsing tracee.Event multiple times.
 func ToParsedEvent(e external.Event) (ParsedEvent, error) {
-	u, err := e.ToUnstructured()
+	u, err := toUnstructured(e)
 	if err != nil {
 		return ParsedEvent{}, fmt.Errorf("unstructuring event: %w", err)
 	}
@@ -379,4 +382,53 @@ func GetFileContentAsString(filename string) (string, error) {
 		return "", err
 	}
 	return string(bytes), nil
+}
+
+func toUnstructured(e external.Event) (map[string]interface{}, error) {
+	var argsRef interface{}
+
+	if e.Args != nil {
+		args := make([]interface{}, len(e.Args))
+		for i, arg := range e.Args {
+			v := arg.Value
+			err := util.RoundTrip(&v)
+			if err != nil {
+				return nil, fmt.Errorf("marshalling arg %s with value %v: %w", arg.Name, arg.Value, err)
+			}
+			args[i] = map[string]interface{}{
+				"name":  arg.Name,
+				"type":  arg.Type,
+				"value": v,
+			}
+		}
+		argsRef = args
+	}
+
+	var stackAddressesRef interface{}
+	if e.StackAddresses != nil {
+		// stackAddresses can be ignored in the context of tracee-rules
+		stackAddressesRef = make([]interface{}, len(e.StackAddresses))
+	}
+
+	return map[string]interface{}{
+		"timestamp":           json.Number(strconv.Itoa(e.Timestamp)),
+		"processId":           json.Number(strconv.Itoa(e.ProcessID)),
+		"threadId":            json.Number(strconv.Itoa(e.ThreadID)),
+		"parentProcessId":     json.Number(strconv.Itoa(e.ParentProcessID)),
+		"hostProcessId":       json.Number(strconv.Itoa(e.HostProcessID)),
+		"hostThreadId":        json.Number(strconv.Itoa(e.HostThreadID)),
+		"hostParentProcessId": json.Number(strconv.Itoa(e.HostParentProcessID)),
+		"userId":              json.Number(strconv.Itoa(e.UserID)),
+		"mountNamespace":      json.Number(strconv.Itoa(e.MountNS)),
+		"pidNamespace":        json.Number(strconv.Itoa(e.PIDNS)),
+		"processName":         e.ProcessName,
+		"hostName":            e.HostName,
+		"containerId":         e.ContainerID,
+		"eventId":             strconv.Itoa(e.EventID),
+		"eventName":           e.EventName,
+		"argsNum":             json.Number(strconv.Itoa(e.ArgsNum)),
+		"returnValue":         json.Number(strconv.Itoa(e.ReturnValue)),
+		"args":                argsRef,
+		"stackAddresses":      stackAddressesRef,
+	}, nil
 }
