@@ -103,7 +103,7 @@ func NewEngine(modules map[string]string) (Engine, error) {
 		peq, err := rego.New(
 			rego.Compiler(compiler),
 			rego.Query(fmt.Sprintf(queryMatch, pkgName)),
-		).PrepareForEval(ctx)
+		).PrepareForEval(ctx, rego.WithPartialEval())
 		if err != nil {
 			return nil, fmt.Errorf("preparing for evaluation: %s: %w", moduleName, err)
 		}
@@ -210,7 +210,7 @@ func NewAIOEngine(modules map[string]string) (Engine, error) {
 	preparedQuery, err := rego.New(
 		rego.Compiler(compiler),
 		rego.Query(queryMatchAll),
-	).PrepareForEval(ctx)
+	).PrepareForEval(ctx, rego.WithPartialEval())
 	if err != nil {
 		return nil, fmt.Errorf("preparing for eval: %w", err)
 	}
