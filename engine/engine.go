@@ -13,6 +13,8 @@ import (
 	"regexp"
 	"strings"
 
+	_ "github.com/open-policy-agent/opa/features/wasm"
+
 	"github.com/aquasecurity/tracee/tracee-ebpf/external"
 	"github.com/aquasecurity/tracee/tracee-rules/types"
 	"github.com/danielpacak/opa-herculean/mapper"
@@ -100,10 +102,14 @@ func NewEngine(modules map[string]string) (Engine, error) {
 		}
 		sigIDToSelectedEvents[metadata.ID] = selectedEvents
 
-		peq, err := rego.New(
+		pr, err := rego.New(
 			rego.Compiler(compiler),
 			rego.Query(fmt.Sprintf(queryMatch, pkgName)),
-		).PrepareForEval(ctx, rego.WithPartialEval())
+		).PartialResult(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("partial eval before evaluation: %s: %w", moduleName, err)
+		}
+		peq, err := pr.Rego(rego.Target("wasm")).PrepareForEval(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("preparing for evaluation: %s: %w", moduleName, err)
 		}
@@ -207,16 +213,20 @@ func NewAIOEngine(modules map[string]string) (Engine, error) {
 		return nil, err
 	}
 
-	preparedQuery, err := rego.New(
+	pr, err := rego.New(
 		rego.Compiler(compiler),
 		rego.Query(queryMatchAll),
-	).PrepareForEval(ctx, rego.WithPartialEval())
+	).PartialResult(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("preparing for eval: %w", err)
+	}
+	peq, err := pr.Rego(rego.Target("wasm")).PrepareForEval(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("preparing for eval: %w", err)
 	}
 
 	return &aio{
-		preparedQuery:         preparedQuery,
+		preparedQuery:         peq,
 		sigIDToMetadata:       sigIDToMetadata,
 		sigIDToSelectedEvents: sigIDToSelectedEvents,
 

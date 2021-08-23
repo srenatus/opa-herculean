@@ -1,10 +1,12 @@
 package engine_test
 
 import (
+	"encoding/json"
 	"flag"
 	"os"
 	"testing"
 
+	"github.com/aquasecurity/tracee/tracee-ebpf/external"
 	"github.com/danielpacak/opa-herculean/engine"
 	"github.com/stretchr/testify/require"
 )
@@ -74,6 +76,30 @@ func BenchmarkEngineWithParsedInput(b *testing.B) {
 		require.NoError(b, err)
 		// b.Error(len(fs0), len(fs1))
 	}
+}
+
+func TestEngineWithRawInput(b *testing.T) {
+	var err error
+	var eng engine.Engine
+
+	{
+		helpers, err := engine.GetFileContentAsString(helpersFilename)
+		require.NoError(b, err)
+		modules, err := engine.GetModulesFromDir(rulesDir)
+		require.NoError(b, err)
+		modules[engine.ModuleNameHelpers] = helpers
+
+		eng, err = engine.NewEngine(modules)
+		require.NoError(b, err)
+	}
+
+	fs0, err := eng.Eval(triggerAntiDebuggingEvent)
+	require.NoError(b, err)
+	require.Equal(b, 1, len(fs0))
+
+	fs1, err := eng.Eval(triggerCodeInjectionEvent)
+	require.NoError(b, err)
+	require.Equal(b, 1, len(fs1))
 }
 
 func TestEngineWithParsedInput(b *testing.T) {
@@ -154,6 +180,41 @@ func TestAIOEngineWithRawInput(b *testing.T) {
 		fs1, err := eng.Eval(triggerCodeInjectionEvent)
 		require.NoError(b, err)
 		require.Equal(b, 1, len(fs1))
-		b.Log(fs1)
+	}
+}
+
+var x string
+var y []byte
+
+func BenchmarkJSONOfEvent(b *testing.B) {
+	for name, evt := range map[string]external.Event{
+		"triggerAntiDebuggingEvent": triggerAntiDebuggingEvent,
+		"triggerCodeInjectionEvent": triggerCodeInjectionEvent,
+	} {
+		b.Run(name, func(b *testing.B) {
+			parsed, err := engine.ToParsedEvent(evt)
+			require.NoError(b, err)
+
+			b.Run("(ast.Value).String()", func(b *testing.B) {
+				b.ResetTimer()
+				for i := 0; i < b.N; i++ {
+					x = parsed.Value.String()
+				}
+			})
+			b.Run("(ast.Value).MarshalJSON()", func(b *testing.B) {
+				b.ResetTimer()
+				for i := 0; i < b.N; i++ {
+					y, err = json.Marshal(parsed.Value)
+					require.NoError(b, err)
+				}
+			})
+			b.Run("json.Marshal(external.Event)", func(b *testing.B) {
+				b.ResetTimer()
+				for i := 0; i < b.N; i++ {
+					y, err = json.Marshal(parsed.Event)
+					require.NoError(b, err)
+				}
+			})
+		})
 	}
 }
